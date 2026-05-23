@@ -3,18 +3,18 @@
 ## Connectivity
 
 ```bash
-curl http://VM_PUBLIC_IP/health
-curl http://VM_PUBLIC_IP/health/azure
-curl http://VM_PUBLIC_IP/health/openai
-curl http://VM_PUBLIC_IP/api/azure/clusters
+curl https://YOUR_DOMAIN/health
+curl https://YOUR_DOMAIN/health/azure
+curl https://YOUR_DOMAIN/health/openai
+curl https://YOUR_DOMAIN/api/azure/clusters
 ```
 
 ## Authentication
 
-1. Open `http://VM_PUBLIC_IP/login`.
+1. Open `https://YOUR_DOMAIN/login`.
 2. Click `Login with Azure`.
 3. Complete Microsoft login.
-4. Expected redirect: `http://VM_PUBLIC_IP/dashboard`.
+4. Expected redirect: `https://YOUR_DOMAIN/dashboard`.
 5. Browser local storage should contain `kubesage_token`.
 
 ## AKS Discovery
@@ -43,20 +43,21 @@ curl http://VM_PUBLIC_IP/api/azure/clusters
 From the VM:
 
 ```bash
-docker compose exec web wget -qO- http://api:8000/health || true
-docker compose exec api python -c "import urllib.request; print(urllib.request.urlopen('https://api.openai.com', timeout=5).status)"
+docker compose -f docker-compose.prod.yml exec web wget -qO- http://api:8000/health || true
+docker compose -f docker-compose.prod.yml exec api python -c "import urllib.request; print(urllib.request.urlopen('https://api.openai.com', timeout=5).status)"
 ```
 
 From your workstation:
 
 ```text
-http://VM_PUBLIC_IP
-http://VM_PUBLIC_IP/health
+https://YOUR_DOMAIN
+https://YOUR_DOMAIN/health
 ```
 
 ## Logs
 
 ```bash
-docker compose logs -f api
-docker compose logs -f web
+docker compose -f docker-compose.prod.yml logs -f api
+docker compose -f docker-compose.prod.yml logs -f web
+docker compose -f docker-compose.prod.yml logs -f caddy
 ```

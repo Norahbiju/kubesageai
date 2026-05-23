@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,13 +19,15 @@ def create_access_token(subject: str) -> str:
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    if credentials is None:
+    token = credentials.credentials if credentials else request.cookies.get("kubesage_session")
+    if not token:
         raise KubeSageError("Missing bearer token", 401)
     try:
-        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except Exception as exc:
         raise KubeSageError("Invalid or expired bearer token", 401) from exc
     user_id = payload.get("sub")

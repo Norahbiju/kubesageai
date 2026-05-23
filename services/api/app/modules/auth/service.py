@@ -8,28 +8,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.auth.models import AzureConnection
 from app.modules.users.models import User
 from app.shared.config import settings
+from app.shared.errors import KubeSageError
 from app.shared.security import create_access_token
 
 
 class AuthService:
-    def azure_login_url(self) -> str:
-        if settings.demo_mode or not settings.azure_client_id:
+    def azure_login_url(self, state: str) -> str:
+        if settings.demo_mode:
             return f"{settings.azure_redirect_uri}?code=demo"
+        if not settings.azure_client_id:
+            raise KubeSageError("Azure client ID is not configured", 500)
 
         query = urlencode(
             {
-                "client_id": settings.azure_client_id or "demo-client",
+                "client_id": settings.azure_client_id,
                 "response_type": "code",
                 "redirect_uri": settings.azure_redirect_uri,
                 "response_mode": "query",
                 "scope": "openid profile email offline_access https://management.azure.com/user_impersonation",
+                "state": state,
             }
         )
         return f"https://login.microsoftonline.com/{settings.azure_tenant_id}/oauth2/v2.0/authorize?{query}"
 
     async def exchange_code(self, session: AsyncSession, code: str) -> str:
-        if settings.demo_mode or not settings.azure_client_secret:
+        if settings.demo_mode:
             return await self._create_demo_session(session)
+        if not settings.azure_client_secret:
+            raise KubeSageError("Azure client secret is not configured", 500)
 
         token_endpoint = f"https://login.microsoftonline.com/{settings.azure_tenant_id}/oauth2/v2.0/token"
         async with httpx.AsyncClient(timeout=20) as client:

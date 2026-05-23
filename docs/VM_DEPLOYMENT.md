@@ -1,5 +1,19 @@
 # Ubuntu VM Deployment
 
+This production path uses a real DNS name, HTTPS, Caddy for automatic TLS certificates, Nginx as the internal reverse proxy, and the FastAPI/Next.js containers behind it.
+
+Microsoft Entra production redirect URIs should be HTTPS. `http://localhost/...` is fine for local development, but `http://VM_PUBLIC_IP/...` is not a production Entra setup.
+
+## Prerequisites
+
+- A DNS record such as `kubesage.example.com` pointing to the VM public IP.
+- Azure VM Network Security Group allows inbound TCP `80`, `443`, and `22`.
+- A Microsoft Entra app registration with this redirect URI:
+
+```text
+https://YOUR_DOMAIN/api/auth/azure/callback
+```
+
 ## Install Docker
 
 ```bash
@@ -20,70 +34,85 @@ newgrp docker
 ```bash
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 sudo ufw --force enable
 sudo ufw status
 ```
-
-Also allow inbound TCP `80` in the Azure VM Network Security Group.
 
 ## Clone And Configure
 
 ```bash
 git clone <YOUR_REPO_URL> kubesageai
 cd kubesageai
-cp .env.example .env
+cp .env.production.example .env
 nano .env
 ```
 
-For direct VM public IP access through the included Nginx reverse proxy:
+Set these values to your actual domain:
 
-```bash
-PUBLIC_PORT=80
-FRONTEND_URL=http://VM_PUBLIC_IP
-BACKEND_URL=http://VM_PUBLIC_IP
+```env
+DOMAIN=YOUR_DOMAIN
+ACME_EMAIL=YOUR_EMAIL
+FRONTEND_URL=https://YOUR_DOMAIN
+BACKEND_URL=https://YOUR_DOMAIN
 NEXT_PUBLIC_API_URL=same-origin
-CORS_ORIGINS=["http://VM_PUBLIC_IP"]
-AZURE_REDIRECT_URI=http://VM_PUBLIC_IP/api/auth/azure/callback
+CORS_ORIGINS=["https://YOUR_DOMAIN"]
+AZURE_REDIRECT_URI=https://YOUR_DOMAIN/api/auth/azure/callback
 ```
 
-## Start
+Set Microsoft Entra credentials:
 
-```bash
-docker compose down
-docker compose up --build
+```env
+DEMO_MODE=false
+AZURE_CLIENT_ID=<application-client-id>
+AZURE_CLIENT_SECRET=<client-secret-value>
+AZURE_TENANT_ID=<directory-tenant-id>
 ```
 
-Detached:
+Generate strong secrets:
 
 ```bash
-docker compose up --build -d
+openssl rand -hex 32
+```
+
+Use different values for `JWT_SECRET` and `NEXTAUTH_SECRET`.
+
+## Start Production
+
+```bash
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml up --build -d
 ```
 
 ## Verify
 
 ```bash
-docker compose ps
-docker compose logs -f api
-docker compose logs -f web
-curl http://localhost/health
-curl http://localhost/health/azure
-curl http://localhost/health/openai
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f caddy
+docker compose -f docker-compose.prod.yml logs -f api
+curl -I https://YOUR_DOMAIN
+curl https://YOUR_DOMAIN/health
+curl https://YOUR_DOMAIN/health/azure
 ```
 
-Public URLs:
+Open:
 
 ```text
-http://VM_PUBLIC_IP
-http://VM_PUBLIC_IP/docs
-http://VM_PUBLIC_IP/health
+https://YOUR_DOMAIN
 ```
+
+Then click `Login with Azure`.
 
 ## Rebuild After Env Changes
 
 Next.js public environment variables are baked at build time.
 
 ```bash
-docker compose down
-docker compose build --no-cache web api
-docker compose up
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml build --no-cache web api
+docker compose -f docker-compose.prod.yml up -d
 ```
+
+## Local Or Demo HTTP
+
+Use `.env.example` and `docker-compose.yml` only for localhost/demo HTTP runs. Do not use `http://VM_PUBLIC_IP` for production Entra login.

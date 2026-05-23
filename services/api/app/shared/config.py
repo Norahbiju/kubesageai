@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,10 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     demo_mode: bool = True
 
+    @property
+    def public_https(self) -> bool:
+        return urlparse(self.frontend_url).scheme == "https" or urlparse(self.azure_redirect_uri).scheme == "https"
+
     def validate_startup(self) -> list[str]:
         warnings: list[str] = []
         if not self.demo_mode:
@@ -43,10 +48,16 @@ class Settings(BaseSettings):
             ]
             if missing:
                 warnings.append(f"Real Azure auth is enabled but missing/invalid variables: {', '.join(missing)}")
+            if not self.azure_redirect_uri.startswith("https://") and "localhost" not in self.azure_redirect_uri:
+                warnings.append("AZURE_REDIRECT_URI should be HTTPS for non-localhost Microsoft Entra login.")
+            if not self.frontend_url.startswith("https://") and "localhost" not in self.frontend_url:
+                warnings.append("FRONTEND_URL should be HTTPS in production.")
         if not self.openai_api_key:
             warnings.append("OPENAI_API_KEY is not configured; analysis will use deterministic fallback output.")
         if self.jwt_secret in {"dev-only-change-me", "change-me-for-local-compose", "replace-with-a-long-random-string"}:
             warnings.append("JWT_SECRET is using a development value.")
+        if self.app_env == "production" and self.demo_mode:
+            warnings.append("APP_ENV=production is running with DEMO_MODE=true.")
         return warnings
 
 

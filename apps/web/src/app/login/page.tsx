@@ -2,10 +2,17 @@
 
 import { motion } from "framer-motion";
 import { Cloud, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 
 export default function LoginPage() {
+  const [hasLoginError, setHasLoginError] = useState(false);
+
+  useEffect(() => {
+    setHasLoginError(new URLSearchParams(window.location.search).has("error"));
+  }, []);
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
       <motion.div
@@ -24,6 +31,11 @@ export default function LoginPage() {
           </div>
         </div>
         <div className="space-y-4">
+          {hasLoginError ? (
+            <div className="rounded-md border border-red-400/40 bg-red-950/40 p-3 text-sm text-red-100">
+              Azure login failed. Check the redirect URI and Entra app registration.
+            </div>
+          ) : null}
           <div className="rounded-md border border-line bg-panel2 p-4 text-sm text-muted">
             Connect Azure, discover AKS clusters, stream Kubernetes failure analysis, and approve safe remediations.
           </div>
