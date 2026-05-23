@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ClusterSelector } from "@/components/cluster-selector";
@@ -13,6 +14,7 @@ import { RemediationCard } from "@/components/remediation-card";
 export default function AnalysisPage() {
   const { data } = useQuery({ queryKey: ["clusters"], queryFn: api.clusters });
   const selectedCluster = useAppStore((state) => state.selectedCluster);
+  const [incidentId, setIncidentId] = useState<string>();
   return (
     <AppShell>
       <div className="mb-6">
@@ -24,7 +26,7 @@ export default function AnalysisPage() {
           <CardHeader><CardTitle>Cluster Context</CardTitle></CardHeader>
           <CardContent><ClusterSelector clusters={data ?? []} /></CardContent>
         </Card>
-        <StreamingAnalysisPanel clusterId={selectedCluster?.id} />
+        <StreamingAnalysisPanel clusterId={selectedCluster?.id} onIncidentReady={setIncidentId} />
         <div className="grid gap-5 lg:grid-cols-2">
           <Card>
             <CardHeader><CardTitle>Incident Timeline</CardTitle></CardHeader>
@@ -35,8 +37,8 @@ export default function AnalysisPage() {
           <Card>
             <CardHeader><CardTitle>Safe Remediation</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              <RemediationCard incidentId="demo-incident" action="rollout_restart_deployment" />
-              <RemediationCard incidentId="demo-incident" action="delete_failed_pod" />
+              <RemediationCard incidentId={incidentId ?? ""} action="rollout_restart_deployment" />
+              <RemediationCard incidentId={incidentId ?? ""} action="delete_failed_pod" />
             </CardContent>
           </Card>
         </div>

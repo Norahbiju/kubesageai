@@ -1,31 +1,51 @@
 import json
+import logging
 from collections.abc import AsyncGenerator
 
 from openai import AsyncOpenAI
+from pydantic import ValidationError
 
 from app.modules.incidents.schemas import AnalysisDTO
 from app.modules.kubernetes.schemas import KubernetesFailure
 from app.shared.config import settings
 
+logger = logging.getLogger("kubesage.ai")
+
 
 class AIAnalysisService:
     def __init__(self) -> None:
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        self.client = AsyncOpenAI(api_key=settings.openai_api_key, timeout=45, max_retries=2) if settings.openai_api_key else None
 
     async def analyze(self, failures: list[KubernetesFailure]) -> AnalysisDTO:
         if not self.client:
             return self._demo_analysis(failures)
 
-        response = await self.client.chat.completions.create(
-            model=settings.openai_model,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": "You are KubeSage AI. Return strict JSON with summary, root_cause, severity, confidence_score, affected_services, remediation, timeline, recommended_action."},
-                {"role": "user", "content": json.dumps([failure.model_dump(mode="json") for failure in failures])},
-            ],
-        )
-        content = response.choices[0].message.content or "{}"
-        return AnalysisDTO.model_validate_json(content)
+        try:
+            logger.info("openai_analysis_start model=%s failures=%s", settings.openai_model, len(failures))
+            response = await self.client.chat.completions.create(
+                model=settings.openai_model,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are KubeSage AI, an AKS incident investigation copilot. "
+                            "Return strict JSON with keys: summary, root_cause, severity, "
+                            "confidence_score, affected_services, remediation, timeline, recommended_action. "
+                            "severity must be one of low, medium, high, critical. confidence_score is 0-100."
+                        ),
+                    },
+                    {"role": "user", "content": json.dumps([failure.model_dump(mode="json") for failure in failures])},
+                ],
+            )
+            content = response.choices[0].message.content or "{}"
+            return AnalysisDTO.model_validate_json(content)
+        except (ValidationError, Exception) as exc:
+            logger.exception("openai_analysis_failed error=%s", exc)
+            fallback = self._demo_analysis(failures)
+            fallback.confidence_score = min(fallback.confidence_score, 62)
+            fallback.summary = f"OpenAI analysis failed, showing fallback deterministic analysis. {fallback.summary}"
+            return fallback
 
     async def stream_analysis(self, failures: list[KubernetesFailure]) -> AsyncGenerator[str, None]:
         analysis = await self.analyze(failures)

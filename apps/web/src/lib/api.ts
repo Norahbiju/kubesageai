@@ -1,12 +1,37 @@
 import type { Cluster, Incident } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const configuredApiBase =
+  process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "same-origin";
+
+function authHeaders() {
+  if (typeof window === "undefined") return {};
+  const token = window.localStorage.getItem("kubesage_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function apiBaseUrl() {
+  if (configuredApiBase === "same-origin" || configuredApiBase === "") return "";
+  if (typeof window === "undefined") return configuredApiBase;
+
+  const isLocalApi =
+    configuredApiBase.includes("localhost") ||
+    configuredApiBase.includes("127.0.0.1") ||
+    configuredApiBase.includes("0.0.0.0");
+  const isRemoteBrowserHost = !["localhost", "127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
+
+  if (isLocalApi && isRemoteBrowserHost) {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+
+  return configuredApiBase;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       ...(init?.headers ?? {})
     }
   });
@@ -17,7 +42,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  loginUrl: () => `${API_BASE}/api/auth/azure/login`,
+  loginUrl: () => `${apiBaseUrl()}/api/auth/azure/login`,
+  me: () => request<{ id: string; email: string; display_name: string }>("/api/auth/me"),
   dashboard: () => request<{
     clusters: number;
     incidents: number;
@@ -33,5 +59,5 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ incident_id: incidentId, action_type: action, parameters: {} })
     }),
-  streamUrl: (clusterId: string) => `${API_BASE}/api/incidents/analyze/stream?cluster_id=${clusterId}`
+  streamUrl: (clusterId: string) => `${apiBaseUrl()}/api/incidents/analyze/stream?cluster_id=${clusterId}`
 };

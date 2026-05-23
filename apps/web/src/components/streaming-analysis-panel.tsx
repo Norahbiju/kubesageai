@@ -7,7 +7,13 @@ import type { Analysis, StreamEvent } from "@/lib/types";
 import { api } from "@/lib/api";
 import { SeverityBadge } from "@/components/severity-badge";
 
-export function StreamingAnalysisPanel({ clusterId }: { clusterId?: string }) {
+export function StreamingAnalysisPanel({
+  clusterId,
+  onIncidentReady
+}: {
+  clusterId?: string;
+  onIncidentReady?: (incidentId: string) => void;
+}) {
   const [progress, setProgress] = useState<string[]>([]);
   const [analysis, setAnalysis] = useState<Analysis>();
   const [streamingText, setStreamingText] = useState("");
@@ -28,12 +34,13 @@ export function StreamingAnalysisPanel({ clusterId }: { clusterId?: string }) {
       }
       if (payload.type === "analysis_complete" && payload.analysis) {
         setAnalysis(payload.analysis);
+        if (payload.incident_id) onIncidentReady?.(payload.incident_id);
         source.close();
       }
       if (payload.type === "error") source.close();
     };
     return () => source.close();
-  }, [clusterId]);
+  }, [clusterId, onIncidentReady]);
 
   const current = useMemo(() => progress.at(-1) ?? "Select a cluster to begin analysis.", [progress]);
 

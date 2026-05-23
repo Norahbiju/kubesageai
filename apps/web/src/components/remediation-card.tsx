@@ -11,7 +11,7 @@ export function RemediationCard({ incidentId, action }: { incidentId: string; ac
         <div className="font-medium">{action}</div>
         <div className="mt-1 text-sm text-muted">Requires explicit approval and audit logging.</div>
       </div>
-      <Button onClick={() => api.approveRemediation(incidentId, action)}>
+      <Button disabled={!incidentId} onClick={() => api.approveRemediation(incidentId, action)}>
         <ShieldCheck size={16} /> Approve
       </Button>
     </div>

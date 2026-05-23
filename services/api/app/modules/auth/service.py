@@ -1,6 +1,7 @@
 from urllib.parse import urlencode
 
 import httpx
+from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,9 @@ from app.shared.security import create_access_token
 
 class AuthService:
     def azure_login_url(self) -> str:
+        if settings.demo_mode or not settings.azure_client_id:
+            return f"{settings.azure_redirect_uri}?code=demo"
+
         query = urlencode(
             {
                 "client_id": settings.azure_client_id or "demo-client",
@@ -41,7 +45,14 @@ class AuthService:
             )
             response.raise_for_status()
             token_payload = response.json()
-        return await self._upsert_user(session, "azure-user", "sre@contoso.com", "Azure SRE", token_payload["access_token"])
+        try:
+            claims = jwt.get_unverified_claims(token_payload.get("id_token", ""))
+        except Exception:
+            claims = {}
+        subject = claims.get("oid") or claims.get("sub") or "azure-user"
+        email = claims.get("preferred_username") or claims.get("email") or f"{subject}@unknown.local"
+        name = claims.get("name") or email
+        return await self._upsert_user(session, subject, email, name, token_payload["access_token"])
 
     async def _create_demo_session(self, session: AsyncSession) -> str:
         return await self._upsert_user(session, "demo-azure-subject", "sre@contoso.com", "Demo SRE", "demo-token")

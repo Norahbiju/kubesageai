@@ -20,7 +20,7 @@ class IncidentService:
         cluster = await session.get(Cluster, cluster_id)
         if cluster is None:
             raise KubeSageError("Cluster not found", 404)
-        failures = await self.kubernetes.collect_failures(cluster_id)
+        failures = await self.kubernetes.collect_failures(cluster)
         analysis = await self.ai.analyze(failures)
         incident = await self.repository.create_with_analysis(
             session,

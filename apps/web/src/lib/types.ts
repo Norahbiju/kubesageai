@@ -35,5 +35,6 @@ export interface Analysis {
 export interface StreamEvent {
   type: "progress" | "analysis_delta" | "analysis_complete" | "error" | "remediation";
   message?: string;
+  incident_id?: string;
   analysis?: Analysis;
 }
