@@ -3,7 +3,7 @@ import type { Cluster, Incident } from "./types";
 const configuredApiBase =
   process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "same-origin";
 
-function authHeaders() {
+function authHeaders(): HeadersInit {
   if (typeof window === "undefined") return {};
   const token = window.localStorage.getItem("kubesage_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -27,13 +27,17 @@ function apiBaseUrl() {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    ...authHeaders()
+  });
+  new Headers(init?.headers).forEach((value, key) => {
+    headers.set(key, value);
+  });
+
   const response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(init?.headers ?? {})
-    }
+    headers
   });
   if (!response.ok) {
     throw new Error(await response.text());
