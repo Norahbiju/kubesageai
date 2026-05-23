@@ -1,10 +1,9 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 export function AuthBootstrap() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -13,8 +12,8 @@ export function AuthBootstrap() {
     window.localStorage.setItem("kubesage_token", token);
     const url = new URL(window.location.href);
     url.searchParams.delete("token");
-    router.replace(`${url.pathname}${url.search}`);
-  }, [router, searchParams]);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [searchParams]);
 
   return null;
 }
