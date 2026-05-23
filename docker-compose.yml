@@ -1,0 +1,48 @@
+services:
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: kubesage-api
+    environment:
+      APP_ENV: development
+      DATABASE_URL: sqlite+aiosqlite:////data/kubesage.db
+      FRONTEND_URL: http://localhost:3000
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      JWT_SECRET: change-me-for-local-compose
+      DEMO_MODE: "true"
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-common}
+      AZURE_REDIRECT_URI: http://localhost:8000/api/auth/azure/callback
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+    ports:
+      - "8000:8000"
+    volumes:
+      - kubesage-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    container_name: kubesage-web
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  kubesage-data:
