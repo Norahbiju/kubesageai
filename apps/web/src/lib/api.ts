@@ -1,39 +1,15 @@
-import type { Cluster, Incident } from "./types";
+import type { Analysis, Cluster, Incident, Subscription } from "./types";
 
 const configuredApiBase =
-  process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "same-origin";
-
-function authHeaders(): HeadersInit {
-  if (typeof window === "undefined") return {};
-  const token = window.localStorage.getItem("kubesage_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+  process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 function apiBaseUrl() {
-  if (configuredApiBase === "same-origin" || configuredApiBase === "") return "";
-  if (typeof window === "undefined") return configuredApiBase;
-
-  const isLocalApi =
-    configuredApiBase.includes("localhost") ||
-    configuredApiBase.includes("127.0.0.1") ||
-    configuredApiBase.includes("0.0.0.0");
-  const isRemoteBrowserHost = !["localhost", "127.0.0.1", "0.0.0.0"].includes(window.location.hostname);
-
-  if (isLocalApi && isRemoteBrowserHost) {
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
-  }
-
-  return configuredApiBase;
+  return configuredApiBase === "same-origin" ? "" : configuredApiBase;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    ...authHeaders()
-  });
-  new Headers(init?.headers).forEach((value, key) => {
-    headers.set(key, value);
-  });
+  const headers = new Headers({ "Content-Type": "application/json" });
+  new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
 
   const response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
@@ -47,22 +23,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  loginUrl: () => `${apiBaseUrl()}/api/auth/azure/login`,
-  me: () => request<{ id: string; email: string; display_name: string }>("/api/auth/me"),
-  dashboard: () => request<{
-    clusters: number;
-    incidents: number;
-    remediation_success_rate: number;
-    confidence_average: number;
-    severity: Record<string, number>;
-    recent_incidents: Incident[];
-  }>("/api/incidents/dashboard"),
-  clusters: () => request<Cluster[]>("/api/azure/clusters"),
-  incidents: () => request<Incident[]>("/api/incidents"),
-  approveRemediation: (incidentId: string, action: string) =>
-    request(`/api/remediation/approve`, {
+  loginUrl: () => `${apiBaseUrl()}/auth/login`,
+  me: () => request<{ id: string; email: string; display_name: string; tenant_id: string }>("/auth/me"),
+  subscriptions: () => request<Subscription[]>("/azure/subscriptions"),
+  subscriptionClusters: (subscriptionId: string) => request<Cluster[]>(`/azure/subscriptions/${subscriptionId}/clusters`),
+  clusters: () => request<Cluster[]>("/clusters"),
+  incidents: () => request<Incident[]>("/incidents"),
+  scanCluster: (clusterId: string) => request<{ incidents: Incident[] }>(`/clusters/${clusterId}/scan`, { method: "POST" }),
+  analyzeIncident: (incidentId: string) => request<Analysis>(`/incidents/${incidentId}/analyze`, { method: "POST" }),
+  approveRemediation: (incidentId: string, actionId: string, actionType: string, actionPayload: Record<string, unknown>) =>
+    request(`/incidents/${incidentId}/remediations/${actionId}/approve`, {
       method: "POST",
-      body: JSON.stringify({ incident_id: incidentId, action_type: action, parameters: {} })
+      body: JSON.stringify({ action_type: actionType, action_payload: actionPayload })
     }),
-  streamUrl: (clusterId: string) => `${apiBaseUrl()}/api/incidents/analyze/stream?cluster_id=${clusterId}`
+  executeRemediation: (incidentId: string, actionId: string) =>
+    request(`/incidents/${incidentId}/remediations/${actionId}/execute`, { method: "POST" }),
+  auditLogs: () => request<Array<Record<string, unknown>>>("/audit-logs"),
+  streamUrl: () => `${apiBaseUrl()}/stream/events`
 };

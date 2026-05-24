@@ -1,2 +1,0 @@
-2026-05-24T08:17:31Z checkout-api lookup catalog.default.svc.cluster.local on 10.0.0.10:53: i/o timeout
-2026-05-24T08:17:34Z checkout-api upstream catalog unavailable after DNS timeout

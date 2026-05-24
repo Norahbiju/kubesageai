@@ -14,10 +14,10 @@ export default function LoginPage() {
   }, []);
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 grid-bg">
       <motion.div
-        className="absolute inset-0 bg-[radial-gradient(circle_at_35%_25%,rgba(92,225,230,.2),transparent_34%),radial-gradient(circle_at_70%_75%,rgba(183,245,102,.14),transparent_28%)]"
-        animate={{ scale: [1, 1.05, 1], opacity: [.85, 1, .85] }}
+        className="absolute inset-x-0 top-0 h-px bg-cyan/70"
+        animate={{ opacity: [.45, 1, .45] }}
         transition={{ duration: 8, repeat: Infinity }}
       />
       <div className="relative w-full max-w-md rounded-lg border border-line bg-panel/80 p-8 shadow-glow backdrop-blur">

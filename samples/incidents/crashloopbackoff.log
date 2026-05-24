@@ -1,3 +1,0 @@
-2026-05-24T08:12:14Z checkout-api ConfigError: missing AZURE_CLIENT_SECRET
-2026-05-24T08:12:15Z checkout-api Application startup aborted
-2026-05-24T08:12:21Z kubelet Back-off restarting failed container checkout-api

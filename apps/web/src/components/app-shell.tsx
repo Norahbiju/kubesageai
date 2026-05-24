@@ -4,14 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
 import type { ReactNode } from "react";
-import { Activity, Bot, History, LayoutDashboard, Settings, Server, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Cloud, FileClock, History, LayoutDashboard, Settings, Server, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav: Array<{ href: Route; label: string; icon: LucideIcon }> = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/azure", label: "Azure", icon: Cloud },
+  { href: "/subscriptions", label: "Subscriptions", icon: Cloud },
   { href: "/clusters", label: "Clusters", icon: Server },
   { href: "/analysis", label: "Analysis", icon: Bot },
+  { href: "/remediation", label: "Remediation", icon: ShieldCheck },
   { href: "/history", label: "History", icon: History },
+  { href: "/audit", label: "Audit Logs", icon: FileClock },
   { href: "/settings", label: "Settings", icon: Settings }
 ];
 

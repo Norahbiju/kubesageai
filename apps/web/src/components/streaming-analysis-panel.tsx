@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Analysis, StreamEvent } from "@/lib/types";
 import { api } from "@/lib/api";
 import { SeverityBadge } from "@/components/severity-badge";
+import { Button } from "@/components/ui/button";
+import { RemediationCard } from "@/components/remediation-card";
 
 export function StreamingAnalysisPanel({
   clusterId,
@@ -16,33 +18,40 @@ export function StreamingAnalysisPanel({
 }) {
   const [progress, setProgress] = useState<string[]>([]);
   const [analysis, setAnalysis] = useState<Analysis>();
-  const [streamingText, setStreamingText] = useState("");
+  const [currentIncidentId, setCurrentIncidentId] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
-    if (!clusterId) return;
-    setProgress([]);
-    setAnalysis(undefined);
-    setStreamingText("");
-    const source = new EventSource(api.streamUrl(clusterId));
+    const source = new EventSource(api.streamUrl(), { withCredentials: true });
     source.onmessage = (event) => {
       const payload = JSON.parse(event.data) as StreamEvent;
-      if (payload.type === "progress" && payload.message) {
-        setProgress((items) => [...items, payload.message!]);
-      }
-      if (payload.type === "analysis_delta" && payload.message) {
-        setStreamingText((text) => `${text}${payload.message}`);
-      }
-      if (payload.type === "analysis_complete" && payload.analysis) {
-        setAnalysis(payload.analysis);
-        if (payload.incident_id) onIncidentReady?.(payload.incident_id);
-        source.close();
-      }
-      if (payload.type === "error") source.close();
+      setProgress((items) => [...items, `${payload.type}: ${JSON.stringify(payload.payload)}`]);
     };
     return () => source.close();
-  }, [clusterId, onIncidentReady]);
+  }, []);
 
-  const current = useMemo(() => progress.at(-1) ?? "Select a cluster to begin analysis.", [progress]);
+  async function runScan() {
+    if (!clusterId) return;
+    setIsRunning(true);
+    setAnalysis(undefined);
+    setProgress((items) => [...items, "cluster.scan.requested"]);
+    try {
+      const scan = await api.scanCluster(clusterId);
+      const firstIncident = scan.incidents[0];
+      if (!firstIncident) {
+        setProgress((items) => [...items, "cluster.scan.completed: no issues detected"]);
+        return;
+      }
+      setCurrentIncidentId(firstIncident.id);
+      onIncidentReady?.(firstIncident.id);
+      const result = await api.analyzeIncident(firstIncident.id);
+      setAnalysis(result);
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
+  const current = useMemo(() => progress.at(-1) ?? "Select a cluster, then start a real AKS scan.", [progress]);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
@@ -52,7 +61,10 @@ export function StreamingAnalysisPanel({
             <Terminal size={16} /> Live Progress
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <Button disabled={!clusterId || isRunning} onClick={runScan}>
+            {isRunning ? "Scanning..." : "Scan Selected Cluster"}
+          </Button>
           <div className="rounded-md border border-line bg-black/40 p-4 font-mono text-sm">
             <div className="mb-4 text-cyan">{current}</div>
             <div className="max-h-72 space-y-2 overflow-auto terminal-scroll">
@@ -88,15 +100,25 @@ export function StreamingAnalysisPanel({
               </div>
               <div className="grid gap-2">
                 {analysis.remediation.map((item) => (
-                  <div key={item} className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">
-                    {item}
+                  <div key={item.title} className="rounded-md border border-line bg-panel2 p-3 text-sm text-muted">
+                    <div className="font-medium text-text">{item.title}</div>
+                    <div className="mt-1">{item.description}</div>
+                    <div className="mt-2 text-xs">{item.action_type} / {item.risk} risk</div>
+                    <div className="mt-3">
+                      <RemediationCard
+                        incidentId={currentIncidentId}
+                        actionId={item.action_id ?? ""}
+                        action={item.action_type}
+                        payload={item.action_payload}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
             <pre className="min-h-80 whitespace-pre-wrap rounded-md border border-line bg-black/40 p-4 text-sm leading-6 text-muted">
-              {streamingText || "AI findings will stream here progressively."}
+              AI findings will appear after a real scan detects an incident.
             </pre>
           )}
         </CardContent>

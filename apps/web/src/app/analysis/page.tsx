@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/store/app-store";
 import { TimelineView } from "@/components/timeline-view";
-import { RemediationCard } from "@/components/remediation-card";
 
 export default function AnalysisPage() {
   const { data } = useQuery({ queryKey: ["clusters"], queryFn: api.clusters });
@@ -31,14 +30,19 @@ export default function AnalysisPage() {
           <Card>
             <CardHeader><CardTitle>Incident Timeline</CardTitle></CardHeader>
             <CardContent>
-              <TimelineView items={["Pod entered CrashLoopBackOff", "Deployment availability dropped", "Events normalized", "AI remediation prepared"]} />
+              <TimelineView
+                items={
+                  incidentId
+                    ? ["Incident detected from live cluster data", "Signals persisted", "OpenAI analysis completed", "Approval-ready remediation prepared"]
+                    : ["Run a scan to populate the incident timeline"]
+                }
+              />
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Safe Remediation</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <RemediationCard incidentId={incidentId ?? ""} action="rollout_restart_deployment" />
-              <RemediationCard incidentId={incidentId ?? ""} action="delete_failed_pod" />
+            <CardHeader><CardTitle>Approval Gate</CardTitle></CardHeader>
+            <CardContent className="text-sm leading-6 text-muted">
+              Remediation actions appear with the AI analysis only after they have been stored by the backend. Execution remains blocked until an operator approves a specific action.
             </CardContent>
           </Card>
         </div>

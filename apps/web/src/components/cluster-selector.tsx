@@ -19,11 +19,11 @@ export function ClusterSelector({ clusters }: { clusters: Cluster[] }) {
               <Server size={18} />
             </div>
             <div>
-              <div className="font-medium">{cluster.name}</div>
+              <div className="font-medium">{cluster.cluster_name}</div>
               <div className="mt-1 text-sm text-muted">
                 {cluster.resource_group} · {cluster.location} · Kubernetes {cluster.kubernetes_version}
               </div>
-              <div className="mt-2 text-xs text-muted">{cluster.failing_workloads} failing workloads detected</div>
+              <div className="mt-2 text-xs text-muted">{cluster.status}</div>
             </div>
           </div>
           <Button

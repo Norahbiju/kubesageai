@@ -27,8 +27,8 @@ export default function HistoryPage() {
           {(data ?? []).map((incident) => (
             <div key={incident.id} className="grid gap-3 rounded-md border border-line bg-panel2 p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
               <div>
-                <div className="font-medium">{incident.title}</div>
-                <div className="mt-1 text-sm text-muted">{incident.cluster_name} · {new Date(incident.created_at).toLocaleString()}</div>
+                <div className="font-medium">{incident.namespace}/{incident.workload_name}</div>
+                <div className="mt-1 text-sm text-muted">{incident.issue_type} / {new Date(incident.detected_at).toLocaleString()}</div>
               </div>
               <SeverityBadge severity={incident.severity} />
               <div className="text-sm text-muted">{incident.status}</div>
