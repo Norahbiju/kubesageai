@@ -15,7 +15,7 @@ configure_logging()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    if settings.service_name in {"api-gateway", "auth-service", "azure-service", "cluster-service", "incident-service", "ai-analysis-service", "remediation-service", "audit-service"}:
+    if settings.service_name == "api-gateway":
         await init_database()
     yield
 
