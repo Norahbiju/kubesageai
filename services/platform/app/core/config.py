@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     service_name: ServiceName = "api-gateway"
     app_env: str = "development"
     log_level: str = "INFO"
+    demo_mode: bool = False
 
     postgres_db: str = "kubesage"
     postgres_user: str = "kubesage"
@@ -49,6 +50,10 @@ class Settings(BaseSettings):
     session_minutes: int = 480
     encryption_key: str
 
+    app_name: str = "KubeSage AI"
+    app_base_url: str = "http://localhost:3000"
+    api_base_url: str = "http://localhost:8000"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors(cls, value: object) -> object:
@@ -62,21 +67,23 @@ class Settings(BaseSettings):
         return value
 
     def validate_runtime(self) -> None:
-        missing = [
-            key
-            for key, value in {
-                "AZURE_TENANT_ID": self.azure_tenant_id,
-                "AZURE_CLIENT_ID": self.azure_client_id,
-                "AZURE_CLIENT_SECRET": self.azure_client_secret,
-                "AZURE_REDIRECT_URI": self.azure_redirect_uri,
-                "OPENAI_API_KEY": self.openai_api_key,
-                "JWT_SECRET": self.jwt_secret,
-                "ENCRYPTION_KEY": self.encryption_key,
-                "DATABASE_URL": self.database_url,
-                "REDIS_URL": self.redis_url,
-            }.items()
-            if not value
-        ]
+        required = {
+            "AZURE_TENANT_ID": self.azure_tenant_id,
+            "AZURE_CLIENT_ID": self.azure_client_id,
+            "AZURE_REDIRECT_URI": self.azure_redirect_uri,
+            "JWT_SECRET": self.jwt_secret,
+            "ENCRYPTION_KEY": self.encryption_key,
+            "DATABASE_URL": self.database_url,
+            "REDIS_URL": self.redis_url,
+        }
+        if self.app_env not in {"local", "development", "test"}:
+            required.update(
+                {
+                    "AZURE_CLIENT_SECRET": self.azure_client_secret,
+                    "OPENAI_API_KEY": self.openai_api_key,
+                }
+            )
+        missing = [key for key, value in required.items() if not value]
         if missing:
             raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
 

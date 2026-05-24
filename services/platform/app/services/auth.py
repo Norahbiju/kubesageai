@@ -20,6 +20,8 @@ class AuthService:
         return secrets.token_urlsafe(32)
 
     def login_url(self, state: str) -> str:
+        if settings.demo_mode:
+            return f"{settings.backend_url}/auth/callback?code=demo&state={state}"
         query = urlencode(
             {
                 "client_id": settings.azure_client_id,
@@ -34,6 +36,19 @@ class AuthService:
         return f"{AUTHORITY}/{settings.azure_tenant_id}/oauth2/v2.0/authorize?{query}"
 
     async def exchange_code(self, session: AsyncSession, code: str) -> tuple[User, str]:
+        if settings.demo_mode and code == "demo":
+            user = await self._upsert_user(
+                session,
+                {
+                    "oid": "demo-local-user",
+                    "preferred_username": "demo@kubesage.local",
+                    "name": "Demo Operator",
+                    "tid": "demo-tenant",
+                },
+                {"access_token": "demo-access-token", "refresh_token": "demo-refresh-token", "expires_in": 3600},
+            )
+            return user, create_session_token(user.id)
+
         token_endpoint = f"{AUTHORITY}/{settings.azure_tenant_id}/oauth2/v2.0/token"
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(

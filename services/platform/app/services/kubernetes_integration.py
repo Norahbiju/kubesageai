@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import KubeSageError
+from app.core.config import settings
 from app.models.entities import Cluster, Incident, IncidentSignal, User
 from app.schemas.dto import IncidentDTO, SignalDTO
 from app.services.azure_integration import azure_service
@@ -46,6 +47,33 @@ class KubernetesIntegrationService:
         cluster = result.scalar_one_or_none()
         if cluster is None:
             raise KubeSageError("Cluster not found", 404, "cluster_not_found")
+        if settings.demo_mode:
+            return [
+                await self._create_incident(
+                    session,
+                    user,
+                    cluster,
+                    SignalDTO(
+                        signal_type="pod_failure",
+                        source="payments-api-7f9d8d6c4c-demo",
+                        message="Container is restarting with CrashLoopBackOff",
+                        raw_payload_json={
+                            "namespace": "payments",
+                            "pod": "payments-api-7f9d8d6c4c-demo",
+                            "container": "payments-api",
+                            "reason": "CrashLoopBackOff",
+                            "restart_count": 12,
+                            "logs_snippet": "Error: database connection timeout while starting payments-api",
+                        },
+                        timestamp=datetime.now(timezone.utc),
+                    ),
+                    namespace="payments",
+                    workload_name="payments-api",
+                    workload_type="Deployment",
+                    issue_type="CrashLoopBackOff",
+                    severity="high",
+                )
+            ]
         api_client = await self.api_client(session, user, cluster)
         core = client.CoreV1Api(api_client)
         apps = client.AppsV1Api(api_client)

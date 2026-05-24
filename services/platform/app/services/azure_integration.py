@@ -6,6 +6,7 @@ from azure.mgmt.resource import SubscriptionClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import KubeSageError
 from app.core.security import decrypt_secret
 from app.models.entities import AzureConnection, Cluster, User
@@ -37,6 +38,14 @@ class AzureIntegrationService:
         return UserTokenCredential(decrypt_secret(connection.encrypted_access_token), connection.expires_at)
 
     async def list_subscriptions(self, session: AsyncSession, user: User) -> list[SubscriptionDTO]:
+        if settings.demo_mode:
+            return [
+                SubscriptionDTO(
+                    subscription_id="demo-subscription",
+                    display_name="Demo Azure Subscription",
+                    state="Enabled",
+                )
+            ]
         credential = await self.credential_for_user(session, user)
         try:
             client = SubscriptionClient(credential)
@@ -56,6 +65,9 @@ class AzureIntegrationService:
             ) from exc
 
     async def list_aks_clusters(self, session: AsyncSession, user: User, subscription_id: str) -> list[ClusterDTO]:
+        if settings.demo_mode:
+            cluster = await self._upsert_demo_cluster(session, user, subscription_id)
+            return [self.to_dto(cluster)]
         credential = await self.credential_for_user(session, user)
         try:
             client = ContainerServiceClient(credential, subscription_id)
@@ -86,6 +98,29 @@ class AzureIntegrationService:
             "kubernetes_version": item.kubernetes_version or "",
             "cluster_resource_id": item.id,
             "status": power_state or item.provisioning_state or "Unknown",
+        }
+        if cluster is None:
+            cluster = Cluster(user_id=user.id, **values)
+            session.add(cluster)
+        else:
+            for key, value in values.items():
+                setattr(cluster, key, value)
+        await session.commit()
+        await session.refresh(cluster)
+        return cluster
+
+    async def _upsert_demo_cluster(self, session: AsyncSession, user: User, subscription_id: str) -> Cluster:
+        resource_id = f"/subscriptions/{subscription_id}/resourceGroups/demo-rg/providers/Microsoft.ContainerService/managedClusters/demo-aks"
+        result = await session.execute(select(Cluster).where(Cluster.user_id == user.id, Cluster.cluster_resource_id == resource_id))
+        cluster = result.scalar_one_or_none()
+        values = {
+            "subscription_id": subscription_id,
+            "resource_group": "demo-rg",
+            "cluster_name": "demo-aks",
+            "location": "eastus",
+            "kubernetes_version": "1.30.0",
+            "cluster_resource_id": resource_id,
+            "status": "Running",
         }
         if cluster is None:
             cluster = Cluster(user_id=user.id, **values)
