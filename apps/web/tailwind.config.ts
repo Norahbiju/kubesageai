@@ -6,19 +6,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#080A0F",
-        panel: "#0D111A",
-        panel2: "#111722",
-        line: "#222A38",
-        text: "#E7ECF4",
-        muted: "#8D99AA",
-        cyan: "#5CE1E6",
-        lime: "#B7F566",
-        amber: "#FFCD70",
-        rose: "#FF6B8A"
+        background: "#171428",
+        panel: "#211F35",
+        panel2: "#2B2942",
+        line: "rgba(255,255,255,.10)",
+        text: "#F4F6FB",
+        muted: "#9FA5B8",
+        cyan: "#4DA3FF",
+        lime: "#32D583",
+        amber: "#F7B955",
+        rose: "#F97066"
       },
       boxShadow: {
-        glow: "0 0 60px rgba(92, 225, 230, .14)"
+        glow: "0 24px 70px rgba(3, 2, 18, .36)"
       }
     }
   },
