@@ -117,15 +117,22 @@ class AuthService:
             user.tenant_id = tenant_id
 
         expires_in = int(token_payload.get("expires_in", 3600))
-        connection = AzureConnection(
-            user_id=user.id,
-            tenant_id=tenant_id,
-            subscription_id="",
-            encrypted_access_token=encrypt_secret(token_payload["access_token"]),
-            encrypted_refresh_token=encrypt_secret(token_payload.get("refresh_token", "")),
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
+        result = await session.execute(
+            select(AzureConnection).where(
+                AzureConnection.user_id == user.id,
+                AzureConnection.tenant_id == tenant_id,
+                AzureConnection.subscription_id == "",
+            )
         )
-        session.add(connection)
+        connection = result.scalar_one_or_none()
+        if connection is None:
+            connection = AzureConnection(user_id=user.id, tenant_id=tenant_id, subscription_id="")
+            session.add(connection)
+
+        connection.encrypted_access_token = encrypt_secret(token_payload["access_token"])
+        connection.encrypted_refresh_token = encrypt_secret(token_payload.get("refresh_token", ""))
+        connection.expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
         await session.commit()
         await session.refresh(user)
         return user
