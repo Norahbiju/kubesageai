@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
+from pydantic import BaseModel
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,13 @@ router = APIRouter()
 STATE_COOKIE = "kubesage_oauth_state"
 
 
+class AnalyzeClusterRequest(BaseModel):
+    cluster_resource_id: str
+    namespace: str | None = None
+    workload: str | None = None
+
+
+@router.get("/api/auth/login")
 @router.get("/auth/login")
 async def login() -> RedirectResponse:
     state = auth_service.create_state()
@@ -34,6 +42,7 @@ async def login() -> RedirectResponse:
     return response
 
 
+@router.get("/api/auth/callback")
 @router.get("/auth/callback")
 async def callback(
     request: Request,
@@ -58,17 +67,21 @@ async def callback(
     return response
 
 
+@router.post("/api/auth/logout")
 @router.post("/auth/logout")
 async def logout(response: Response) -> dict[str, str]:
     response.delete_cookie(settings.session_cookie_name)
     return {"status": "ok"}
 
 
+@router.get("/api/me")
+@router.get("/api/auth/me")
 @router.get("/auth/me")
 async def me(user: User = Depends(current_user)) -> dict:
     return {"id": user.id, "email": user.email, "display_name": user.display_name, "tenant_id": user.tenant_id}
 
 
+@router.get("/api/azure/subscriptions")
 @router.get("/azure/subscriptions")
 async def subscriptions(
     request: Request,
@@ -82,6 +95,7 @@ async def subscriptions(
     return [item.model_dump() for item in items]
 
 
+@router.get("/api/azure/subscriptions/{subscription_id}/clusters")
 @router.get("/azure/subscriptions/{subscription_id}/clusters")
 async def aks_clusters(
     subscription_id: str,
@@ -95,12 +109,30 @@ async def aks_clusters(
     return [item.model_dump() for item in items]
 
 
+@router.get("/api/azure/clusters")
+async def azure_clusters(
+    request: Request,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    items = await azure_service.list_all_aks_clusters(session, user)
+    await audit(session, user_id=user.id, action="azure.aks.list_all", resource_type="azure", resource_id=user.tenant_id, details={"count": len(items)}, request=request)
+    return [item.model_dump() for item in items]
+
+
+@router.get("/api/azure/connectivity-check")
+async def azure_connectivity_check(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
+    return await azure_service.connectivity_check(session, user)
+
+
+@router.get("/api/clusters")
 @router.get("/clusters")
 async def clusters(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> list[dict]:
-    result = await session.execute(select(Cluster).where(Cluster.user_id == user.id).order_by(Cluster.cluster_name))
-    return [azure_service.to_dto(item).model_dump() for item in result.scalars().all()]
+    items = await azure_service.list_all_aks_clusters(session, user)
+    return [item.model_dump() for item in items]
 
 
+@router.get("/api/clusters/{cluster_id}")
 @router.get("/clusters/{cluster_id}")
 async def cluster(cluster_id: str, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
     result = await session.execute(select(Cluster).where(Cluster.id == cluster_id, Cluster.user_id == user.id))
@@ -110,6 +142,7 @@ async def cluster(cluster_id: str, user: User = Depends(current_user), session: 
     return azure_service.to_dto(item).model_dump()
 
 
+@router.post("/api/clusters/{cluster_id}/scan")
 @router.post("/clusters/{cluster_id}/scan")
 async def scan_cluster(
     cluster_id: str,
@@ -126,12 +159,14 @@ async def scan_cluster(
     return {"incidents": [kubernetes_service.to_dto(item).model_dump() for item in incidents]}
 
 
+@router.get("/api/incidents")
 @router.get("/incidents")
 async def incidents(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> list[dict]:
     result = await session.execute(select(Incident).where(Incident.user_id == user.id).order_by(Incident.detected_at.desc()))
     return [kubernetes_service.to_dto(item).model_dump() for item in result.scalars().all()]
 
 
+@router.get("/api/incidents/{incident_id}")
 @router.get("/incidents/{incident_id}")
 async def incident(incident_id: str, user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> dict:
     item = await session.get(Incident, incident_id)
@@ -140,6 +175,23 @@ async def incident(incident_id: str, user: User = Depends(current_user), session
     return kubernetes_service.to_dto(item).model_dump()
 
 
+@router.post("/api/incidents/analyze")
+async def analyze_cluster_request(
+    payload: AnalyzeClusterRequest,
+    request: Request,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    cluster = await azure_service.verify_cluster_access(session, user, payload.cluster_resource_id)
+    incidents = await kubernetes_service.scan_cluster(session, user, cluster.id)
+    if not incidents:
+        return {"incidents": [], "analysis": None}
+    result = await ai_service.analyze_incident(session, user, incidents[0].id)
+    await audit(session, user_id=user.id, action="ai.analysis.completed", resource_type="cluster", resource_id=cluster.id, details={"model": settings.openai_model}, request=request)
+    return {"incidents": [kubernetes_service.to_dto(item).model_dump() for item in incidents], "analysis": result.model_dump()}
+
+
+@router.post("/api/incidents/{incident_id}/analyze")
 @router.post("/incidents/{incident_id}/analyze")
 async def analyze_incident(
     incident_id: str,
@@ -155,6 +207,7 @@ async def analyze_incident(
     return result.model_dump()
 
 
+@router.post("/api/incidents/{incident_id}/remediations/{action_id}/approve")
 @router.post("/incidents/{incident_id}/remediations/{action_id}/approve")
 async def approve_remediation(
     incident_id: str,
@@ -169,6 +222,7 @@ async def approve_remediation(
     return {"id": action.id, "approval_status": action.approval_status}
 
 
+@router.post("/api/incidents/{incident_id}/remediations/{action_id}/execute")
 @router.post("/incidents/{incident_id}/remediations/{action_id}/execute")
 async def execute_remediation(
     incident_id: str,
@@ -184,6 +238,7 @@ async def execute_remediation(
     return {"id": action.id, "execution_status": action.execution_status, "execution_result": action.execution_result}
 
 
+@router.get("/api/stream/events")
 @router.get("/stream/events")
 async def stream_events(user: User = Depends(current_user)) -> StreamingResponse:
     redis = Redis.from_url(settings.redis_url, decode_responses=True)
@@ -206,6 +261,7 @@ async def stream_events(user: User = Depends(current_user)) -> StreamingResponse
     return StreamingResponse(generator(), media_type="text/event-stream")
 
 
+@router.get("/api/audit-logs")
 @router.get("/audit-logs")
 async def audit_logs(user: User = Depends(current_user), session: AsyncSession = Depends(get_session)) -> list[dict]:
     return [

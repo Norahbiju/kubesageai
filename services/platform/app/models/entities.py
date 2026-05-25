@@ -23,9 +23,10 @@ class TimestampMixin:
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("tenant_id", "azure_object_id", name="uq_user_tenant_object"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    azure_object_id: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    azure_object_id: Mapped[str] = mapped_column(String(180), index=True)
     email: Mapped[str] = mapped_column(String(320), index=True)
     display_name: Mapped[str] = mapped_column(String(240))
     tenant_id: Mapped[str] = mapped_column(String(120), index=True)
@@ -33,7 +34,7 @@ class User(Base, TimestampMixin):
 
 class AzureConnection(Base, TimestampMixin):
     __tablename__ = "azure_connections"
-    __table_args__ = (UniqueConstraint("user_id", "tenant_id", "subscription_id", name="uq_user_tenant_subscription"),)
+    __table_args__ = (UniqueConstraint("user_id", "tenant_id", name="uq_user_tenant_connection"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
@@ -42,6 +43,18 @@ class AzureConnection(Base, TimestampMixin):
     encrypted_access_token: Mapped[str] = mapped_column(Text)
     encrypted_refresh_token: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Subscription(Base, TimestampMixin):
+    __tablename__ = "subscriptions"
+    __table_args__ = (UniqueConstraint("user_id", "subscription_id", name="uq_user_subscription"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    subscription_id: Mapped[str] = mapped_column(String(120), index=True)
+    display_name: Mapped[str] = mapped_column(String(240))
+    tenant_id: Mapped[str] = mapped_column(String(120), index=True, default="")
+    state: Mapped[str] = mapped_column(String(80))
 
 
 class Cluster(Base, TimestampMixin):
@@ -57,6 +70,7 @@ class Cluster(Base, TimestampMixin):
     kubernetes_version: Mapped[str] = mapped_column(String(80))
     cluster_resource_id: Mapped[str] = mapped_column(Text, index=True)
     status: Mapped[str] = mapped_column(String(80))
+    fqdn: Mapped[str] = mapped_column(Text, default="")
 
 
 class Incident(Base, TimestampMixin):
@@ -91,6 +105,7 @@ class AIAnalysis(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     incident_id: Mapped[str] = mapped_column(ForeignKey("incidents.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     summary: Mapped[str] = mapped_column(Text)
     root_cause: Mapped[str] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(40))

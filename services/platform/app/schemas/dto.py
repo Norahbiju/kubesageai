@@ -18,6 +18,7 @@ class SubscriptionDTO(BaseModel):
     subscription_id: str
     display_name: str
     state: str
+    tenant_id: str = ""
 
 
 class ClusterDTO(BaseModel):
@@ -29,6 +30,7 @@ class ClusterDTO(BaseModel):
     kubernetes_version: str
     cluster_resource_id: str
     status: str
+    fqdn: str = ""
 
 
 class SignalDTO(BaseModel):

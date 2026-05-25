@@ -34,7 +34,6 @@ services:
     environment: &backend_env
       SERVICE_NAME: api-gateway
       APP_ENV: ${APP_ENV:-development}
-      DEMO_MODE: ${DEMO_MODE:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
@@ -42,9 +41,11 @@ services:
       BACKEND_URL: ${BACKEND_URL}
       CORS_ORIGINS: ${CORS_ORIGINS}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_AUTHORITY: ${AZURE_AUTHORITY:-https://login.microsoftonline.com/organizations}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
       AZURE_REDIRECT_URI: ${AZURE_REDIRECT_URI}
+      AZURE_SCOPES: ${AZURE_SCOPES:-openid profile email offline_access https://management.azure.com/user_impersonation}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
       JWT_SECRET: ${JWT_SECRET}

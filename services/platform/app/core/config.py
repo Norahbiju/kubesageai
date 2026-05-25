@@ -24,7 +24,6 @@ class Settings(BaseSettings):
     service_name: ServiceName = "api-gateway"
     app_env: str = "development"
     log_level: str = "INFO"
-    demo_mode: bool = False
 
     postgres_db: str = "kubesage"
     postgres_user: str = "kubesage"
@@ -36,10 +35,12 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
-    azure_tenant_id: str
+    azure_tenant_id: str = "organizations"
+    azure_authority: str = "https://login.microsoftonline.com/organizations"
     azure_client_id: str
     azure_client_secret: str
     azure_redirect_uri: str
+    azure_scopes: str = "openid profile email offline_access https://management.azure.com/user_impersonation"
 
     openai_api_key: str
     openai_model: str = "gpt-4.1-mini"
@@ -68,7 +69,6 @@ class Settings(BaseSettings):
 
     def validate_runtime(self) -> None:
         required = {
-            "AZURE_TENANT_ID": self.azure_tenant_id,
             "AZURE_CLIENT_ID": self.azure_client_id,
             "AZURE_REDIRECT_URI": self.azure_redirect_uri,
             "JWT_SECRET": self.jwt_secret,

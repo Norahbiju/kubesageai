@@ -20,36 +20,21 @@ class AuthService:
         return secrets.token_urlsafe(32)
 
     def login_url(self, state: str) -> str:
-        if settings.demo_mode:
-            return f"{settings.backend_url}/auth/callback?code=demo&state={state}"
         query = urlencode(
             {
                 "client_id": settings.azure_client_id,
                 "response_type": "code",
                 "redirect_uri": settings.azure_redirect_uri,
                 "response_mode": "query",
-                "scope": "openid profile email offline_access https://management.azure.com/user_impersonation",
+                "scope": settings.azure_scopes,
                 "state": state,
                 "prompt": "select_account",
             }
         )
-        return f"{AUTHORITY}/{settings.azure_tenant_id}/oauth2/v2.0/authorize?{query}"
+        return f"{settings.azure_authority.rstrip('/')}/oauth2/v2.0/authorize?{query}"
 
     async def exchange_code(self, session: AsyncSession, code: str) -> tuple[User, str]:
-        if settings.demo_mode and code == "demo":
-            user = await self._upsert_user(
-                session,
-                {
-                    "oid": "demo-local-user",
-                    "preferred_username": "demo@kubesage.local",
-                    "name": "Demo Operator",
-                    "tid": "demo-tenant",
-                },
-                {"access_token": "demo-access-token", "refresh_token": "demo-refresh-token", "expires_in": 3600},
-            )
-            return user, create_session_token(user.id)
-
-        token_endpoint = f"{AUTHORITY}/{settings.azure_tenant_id}/oauth2/v2.0/token"
+        token_endpoint = f"{settings.azure_authority.rstrip('/')}/oauth2/v2.0/token"
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 token_endpoint,
@@ -59,7 +44,7 @@ class AuthService:
                     "code": code,
                     "grant_type": "authorization_code",
                     "redirect_uri": settings.azure_redirect_uri,
-                    "scope": "openid profile email offline_access https://management.azure.com/user_impersonation",
+                    "scope": settings.azure_scopes,
                 },
             )
         if response.status_code >= 400:
@@ -90,11 +75,6 @@ class AuthService:
             )
         except JWTError as exc:
             raise KubeSageError("Azure ID token signature validation failed", 401, "invalid_id_token") from exc
-        if claims.get("tid") not in {settings.azure_tenant_id, "common", "organizations"} and settings.azure_tenant_id not in {
-            "common",
-            "organizations",
-        }:
-            raise KubeSageError("Azure tenant mismatch", 401, "invalid_tenant")
         return claims
 
     async def _upsert_user(self, session: AsyncSession, claims: dict, token_payload: dict) -> User:
@@ -105,7 +85,7 @@ class AuthService:
         name = claims.get("name") or email
         tenant_id = claims.get("tid") or settings.azure_tenant_id
 
-        result = await session.execute(select(User).where(User.azure_object_id == object_id))
+        result = await session.execute(select(User).where(User.azure_object_id == object_id, User.tenant_id == tenant_id))
         user = result.scalar_one_or_none()
         if user is None:
             user = User(azure_object_id=object_id, email=email, display_name=name, tenant_id=tenant_id)

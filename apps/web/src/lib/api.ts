@@ -23,21 +23,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  loginUrl: () => `${apiBaseUrl()}/auth/login`,
-  me: () => request<{ id: string; email: string; display_name: string; tenant_id: string }>("/auth/me"),
-  subscriptions: () => request<Subscription[]>("/azure/subscriptions"),
-  subscriptionClusters: (subscriptionId: string) => request<Cluster[]>(`/azure/subscriptions/${subscriptionId}/clusters`),
-  clusters: () => request<Cluster[]>("/clusters"),
-  incidents: () => request<Incident[]>("/incidents"),
-  scanCluster: (clusterId: string) => request<{ incidents: Incident[] }>(`/clusters/${clusterId}/scan`, { method: "POST" }),
-  analyzeIncident: (incidentId: string) => request<Analysis>(`/incidents/${incidentId}/analyze`, { method: "POST" }),
+  loginUrl: () => `${apiBaseUrl()}/api/auth/login`,
+  logout: () => request<{ status: string }>("/api/auth/logout", { method: "POST" }),
+  me: () => request<{ id: string; email: string; display_name: string; tenant_id: string }>("/api/me"),
+  subscriptions: () => request<Subscription[]>("/api/azure/subscriptions"),
+  subscriptionClusters: (subscriptionId: string) => request<Cluster[]>(`/api/azure/subscriptions/${subscriptionId}/clusters`),
+  clusters: () => request<Cluster[]>("/api/azure/clusters"),
+  connectivityCheck: () => request<{ authenticated: boolean; azure_connected: boolean; subscription_count: number; tenant_id: string }>("/api/azure/connectivity-check"),
+  incidents: () => request<Incident[]>("/api/incidents"),
+  scanCluster: (clusterId: string) => request<{ incidents: Incident[] }>(`/api/clusters/${clusterId}/scan`, { method: "POST" }),
+  analyzeIncident: (incidentId: string) => request<Analysis>(`/api/incidents/${incidentId}/analyze`, { method: "POST" }),
   approveRemediation: (incidentId: string, actionId: string, actionType: string, actionPayload: Record<string, unknown>) =>
-    request(`/incidents/${incidentId}/remediations/${actionId}/approve`, {
+    request(`/api/incidents/${incidentId}/remediations/${actionId}/approve`, {
       method: "POST",
       body: JSON.stringify({ action_type: actionType, action_payload: actionPayload })
     }),
   executeRemediation: (incidentId: string, actionId: string) =>
-    request(`/incidents/${incidentId}/remediations/${actionId}/execute`, { method: "POST" }),
-  auditLogs: () => request<Array<Record<string, unknown>>>("/audit-logs"),
-  streamUrl: () => `${apiBaseUrl()}/stream/events`
+    request(`/api/incidents/${incidentId}/remediations/${actionId}/execute`, { method: "POST" }),
+  auditLogs: () => request<Array<Record<string, unknown>>>("/api/audit-logs"),
+  streamUrl: () => `${apiBaseUrl()}/api/stream/events`
 };

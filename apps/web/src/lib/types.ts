@@ -4,6 +4,7 @@ export interface Subscription {
   subscription_id: string;
   display_name: string;
   state: string;
+  tenant_id: string;
 }
 
 export interface Cluster {
@@ -15,6 +16,7 @@ export interface Cluster {
   kubernetes_version: string;
   cluster_resource_id: string;
   status: string;
+  fqdn: string;
 }
 
 export interface Incident {

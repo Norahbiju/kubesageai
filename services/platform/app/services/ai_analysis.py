@@ -56,6 +56,7 @@ class AIAnalysisService:
         result = await self._call_openai(context)
         analysis = AIAnalysis(
             incident_id=incident.id,
+            user_id=user.id,
             summary=result.summary,
             root_cause=result.root_cause,
             severity=result.severity,
@@ -81,36 +82,6 @@ class AIAnalysisService:
         return result
 
     async def _call_openai(self, context: dict) -> AIAnalysisResult:
-        if settings.demo_mode:
-            incident = context["incident"]
-            namespace = incident["namespace"]
-            workload = incident["workload_name"]
-            return AIAnalysisResult.model_validate(
-                {
-                    "summary": f"{namespace}/{workload} is restarting repeatedly in demo mode.",
-                    "root_cause": "The demo signal indicates the workload cannot establish its required startup dependency.",
-                    "severity": "high",
-                    "confidence_score": 86,
-                    "affected_services": [workload],
-                    "timeline": [
-                        {"time": incident["detected_at"], "event": "KubeSage detected CrashLoopBackOff"},
-                        {"time": incident["detected_at"], "event": "Restart count exceeded healthy threshold"},
-                    ],
-                    "remediation": [
-                        {
-                            "title": "Restart deployment after dependency recovery",
-                            "description": "Performs a Kubernetes SDK rollout restart for the affected deployment.",
-                            "risk": "low",
-                            "action_type": "restart_deployment",
-                            "requires_approval": True,
-                            "command_preview": "SDK patch deployment template annotation",
-                            "action_payload": {"namespace": namespace, "deployment": workload},
-                        }
-                    ],
-                    "explanation": "This is deterministic local demo analysis. Real mode sends structured incident context to OpenAI.",
-                    "next_steps": ["Review the action", "Approve remediation", "Execute only after approval"],
-                }
-            )
         content = await self._completion(context)
         try:
             return AIAnalysisResult.model_validate_json(content)

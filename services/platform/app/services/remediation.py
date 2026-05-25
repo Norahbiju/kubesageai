@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import KubeSageError
-from app.core.config import settings
 from app.models.entities import Cluster, Incident, RemediationAction, User
 from app.schemas.dto import ApproveRemediationRequest
 from app.services.kubernetes_integration import kubernetes_service
@@ -43,13 +42,6 @@ class RemediationService:
         cluster = await session.get(Cluster, incident.cluster_id) if incident else None
         if incident is None or cluster is None or incident.user_id != user.id:
             raise KubeSageError("Incident or cluster not found", 404, "incident_not_found")
-        if settings.demo_mode:
-            action.execution_status = "succeeded"
-            action.execution_result = f"Demo mode recorded {action.action_type}; no Kubernetes API call was executed"
-            action.executed_at = datetime.now(timezone.utc)
-            await session.commit()
-            await session.refresh(action)
-            return action
         api_client = await kubernetes_service.api_client(session, user, cluster)
         try:
             result = await self._execute_with_sdk(api_client, action.action_type, action.action_payload_json)
